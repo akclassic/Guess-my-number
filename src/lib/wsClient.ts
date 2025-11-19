@@ -1,24 +1,16 @@
-export type OutgoingMessage =
-    | { type: "join_matchmaking"; payload: { name: string } }
-    | { type: "make_guess"; payload: { guess: string } }
-    | { type: "leave_matchmaking" }
+import type { ClientMessage as OutgoingMessage, ServerMessage as IncomingMessage } from "@/types/messages";
 
-export type IncomingMessage =
-    | { type: "matchmaking_joined"; matchId: string }
-    | { type: "match_found"; mactchid: string; opponentName: string }
-    | { type: "game_state"; state: any }
-    | { type: "guess_result"; result: any }
-    | { type: "error"; message: string }
-    | { type: "pong" }
-    | { type: string;[key: string]: any }; // For any additional message types
-
-type Listener = (nessage: IncomingMessage) => void;
+type Listener = (message: IncomingMessage) => void;
+type StatusListener = (status: ConnectionStatus) => void;
+type ConnectionStatus = "connecting" | "connected" | "disconnected";
 
 export class GameWsClient {
     private socket: WebSocket | null = null;
     private listeners = new Set<Listener>();
+    private statusListeners = new Set<StatusListener>();
     private url: string;
     private reconnectTimeout: number | null = null;
+    private status: ConnectionStatus = "connecting";
 
     constructor(url: string) {
         this.url = url;
@@ -26,14 +18,17 @@ export class GameWsClient {
     }
 
     private connect() {
+        this.updateStatus("connecting");
         this.socket = new WebSocket(this.url);
 
         this.socket.onopen = () => {
             console.log("WebSocket connected");
+            this.updateStatus("connected");
         }
 
         this.socket.onclose = () => {
             console.log("[Ws] disconnected, will retry...");
+            this.updateStatus("disconnected");
             if (!this.reconnectTimeout) {
                 this.reconnectTimeout = window.setTimeout(() => {
                     this.reconnectTimeout = null;
@@ -61,7 +56,7 @@ export class GameWsClient {
         if(!this.socket || this.socket.readyState !== WebSocket.OPEN) {
             console.warn("WebSocket is not open. Cannot send message.");
             return;
-        }   
+        }
         this.socket.send(JSON.stringify(message));
     }
 
@@ -70,5 +65,18 @@ export class GameWsClient {
         return () => {
             this.listeners.delete(listener);
         }
+    }
+
+    onStatusChange(listener: StatusListener) {
+        this.statusListeners.add(listener);
+        listener(this.status);
+        return () => {
+            this.statusListeners.delete(listener);
+        };
+    }
+
+    private updateStatus(status: ConnectionStatus) {
+        this.status = status;
+        this.statusListeners.forEach((listener) => listener(status));
     }
 }

@@ -31,19 +31,45 @@ const server = Bun.serve({
       }
 
       switch (parsed.type) {
-        case "join_matchmakeing":
-          matchmaker.addPlayer(ws);
+        case "join_matchmaking": {
+          const name = parsed.name?.trim();
+          if (!name) {
+            ws.send(JSON.stringify({ type: "error", message: "Name is required" }));
+            return;
+          }
+
+          matchmaker.addPlayer(ws, name, parsed.mode);
           break;
-        case "submit_guess":
+        }
+        case "submit_secret": {
           const room = matchmaker.getRoom(ws.data.roomId);
           if (!room) {
             ws.send(JSON.stringify({ type: "error", message: "Room not found" }));
             return;
           }
           const playerId = ws.data.playerId;
-          room.handleGuess(playerId, parsed.secret);
+          if (!playerId) {
+            ws.send(JSON.stringify({ type: "error", message: "Unknown player" }));
+            return;
+          }
+          room.setSecret(playerId, parsed.secret);
           break;
-        case "leave":
+        }
+        case "make_guess": {
+          const room = matchmaker.getRoom(ws.data.roomId);
+          if (!room) {
+            ws.send(JSON.stringify({ type: "error", message: "Room not found" }));
+            return;
+          }
+          const playerId = ws.data.playerId;
+          if (!playerId) {
+            ws.send(JSON.stringify({ type: "error", message: "Unknown player" }));
+            return;
+          }
+          room.handleGuess(playerId, parsed.guess);
+          break;
+        }
+        case "leave_matchmaking":
           ws.close();
           break;
         case "ping":

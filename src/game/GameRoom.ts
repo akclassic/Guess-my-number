@@ -1,8 +1,6 @@
-import type { Server, ServerWebSocket } from "bun";
+import type { ServerWebSocket } from "bun";
 import { computeBullsAndCows, isValidNumber } from "./GameEngine";
-import type { ServerMessage } from "@/types/messages";
-
-type PlayerId = "player1" | "player2";
+import type { PlayerId, ServerMessage } from "@/types/messages";
 
 interface PlayerState {
     socket: ServerWebSocket<any>;
@@ -14,6 +12,8 @@ export class GameRoom {
     private players: Record<PlayerId, PlayerState>;
     private currentTurn: PlayerId | null = null;
     private isFinished = false;
+    private startingPlayer: PlayerId | null = null;
+    private turnNumber = 0;
 
     constructor(id: string, p1: ServerWebSocket<any>, p2: ServerWebSocket<any>) {
         this.id = id;
@@ -33,18 +33,6 @@ export class GameRoom {
 
     init() {
         this.broadcast({ type: "request_secret" });
-
-        this.sendTo("player1", {
-            type: "match_found",
-            roomId: this.id,
-            players: "player1",
-        });
-
-        this.sendTo("player2", {
-            type: "match_found",
-            roomId: this.id,
-            players: "player2",
-        });
     }
 
     setSecret(player: PlayerId, secret: string): boolean {
@@ -59,7 +47,9 @@ export class GameRoom {
 
         if (this.players.player1.secret && this.players.player2.secret) {
             // both players have set their secrets, start the game
-            this.currentTurn = Math.random() < 0.5 ? "player1" : "player2";
+            this.startingPlayer = Math.random() < 0.5 ? "player1" : "player2";
+            this.currentTurn = this.startingPlayer;
+            this.turnNumber = 1;
             this.updateTurnInfo();
         }
 
@@ -67,16 +57,20 @@ export class GameRoom {
     }
 
     private updateTurnInfo() {
-        if(!this.currentTurn) return;
+        if(!this.currentTurn || !this.startingPlayer) return;
 
         this.sendTo("player1", {
             type: "turn_info",
             yourTurn: this.currentTurn === "player1",
+            turnNumber: this.turnNumber,
+            startingPlayer: this.startingPlayer,
         });
 
         this.sendTo("player2", {
             type: "turn_info",
             yourTurn: this.currentTurn === "player2",
+            turnNumber: this.turnNumber,
+            startingPlayer: this.startingPlayer,
         });
     }
 
@@ -106,7 +100,7 @@ export class GameRoom {
 
         const { bulls, cows } = computeBullsAndCows(guess, opponentSecret);
 
-        this.broadcast({ type: "guess_result", guess, bulls, cows });
+        this.broadcast({ type: "guess_result", guess, bulls, cows, by: player });
 
         if (bulls === 4) {
             this.isFinished = true;
@@ -117,6 +111,7 @@ export class GameRoom {
 
         // switch turn
         this.currentTurn = opponent;
+        this.turnNumber += 1;
         this.updateTurnInfo();
     }
 

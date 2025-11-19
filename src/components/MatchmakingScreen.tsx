@@ -7,25 +7,30 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { useGameClient } from "@/hooks/useGameClient";
 import { Badge } from "./ui/badge";
+import type { GameMode } from "@/types/messages";
 
 type Props = {
-    onMatchFound: (data: { matchId: string; opponentName: string }) => void;
+    onMatchFound: (data: { matchId: string; opponentName: string; youAre: "player1" | "player2"; gameMode: GameMode }) => void;
 };
+
+const WS_URL = "ws://localhost:3001";
 
 export function MatchmakingScreen({ onMatchFound }: Props) {
     const [name, setName] = useState("");
     const [mode, setMode] = useState<"infinite" | "limited">("infinite");
     const [isJoining, setIsJoining] = useState(false);
 
-    const { send, lastMessage, status } = useGameClient("ws://localhost:3000/ws"); // <-- adjust URL
+    const { send, lastMessage, status } = useGameClient(WS_URL);
 
     useEffect(() => {
         if (!lastMessage) return;
         if (lastMessage.type === "match_found") {
             setIsJoining(false);
             onMatchFound({
-                matchId: lastMessage.mactchid,
+                matchId: lastMessage.matchId,
                 opponentName: lastMessage.opponentName,
+                youAre: lastMessage.youAre,
+                gameMode: lastMessage.gameMode,
             });
         }
     }, [lastMessage, onMatchFound]);
@@ -36,10 +41,9 @@ export function MatchmakingScreen({ onMatchFound }: Props) {
 
         send({
             type: "join_matchmaking",
-            payload: { name },
+            name,
+            mode,
         });
-
-        // if your backend needs mode info, include it there as well
     };
 
     const statusColor =

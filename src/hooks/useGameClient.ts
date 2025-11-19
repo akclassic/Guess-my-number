@@ -1,28 +1,39 @@
 import { useEffect, useMemo, useState } from "react";
-import { GameWsClient, type IncomingMessage, type OutgoingMessage } from "@/lib/wsClient";
+import { GameWsClient } from "@/lib/wsClient";
+import type { ClientMessage, ServerMessage } from "@/types/messages";
+
+const clientCache = new Map<string, GameWsClient>();
+
+function getClient(url: string) {
+    if (!clientCache.has(url)) {
+        clientCache.set(url, new GameWsClient(url));
+    }
+    return clientCache.get(url)!;
+}
 
 export function useGameClient(wsUrl: string) {
-    const [lastMessage, setLastMessage] = useState<IncomingMessage | null>(null);
+    const [lastMessage, setLastMessage] = useState<ServerMessage | null>(null);
     const [status, setStatus] = useState<"connecting" | "connected" | "disconnected">("connecting");
 
-    const client = useMemo(() => new GameWsClient(wsUrl), [wsUrl]);
+    const client = useMemo(() => getClient(wsUrl), [wsUrl]);
 
     useEffect(() => {
-        const unsub = client.subscribe((message) => {
+        const unsubscribeMessage = client.subscribe((message) => {
             setLastMessage(message);
             if (message.type === "error") {
                 console.error("Game Client Error:", message.message);
             }
         });
 
-        setStatus("connected");
+        const unsubscribeStatus = client.onStatusChange(setStatus);
+
         return () => {
-            unsub();
-            setStatus("disconnected");
+            unsubscribeMessage();
+            unsubscribeStatus();
         };
     }, [client]);
 
-    const send = (message: OutgoingMessage) => client.send(message);
+    const send = (message: ClientMessage) => client.send(message);
 
     return { send, lastMessage, status };
 }

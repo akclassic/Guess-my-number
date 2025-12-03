@@ -3,6 +3,9 @@ export type PlayerId = "player1" | "player2";
 
 export type ClientMessage =
   | { type: "join_matchmaking"; name: string; mode: GameMode }
+  | { type: "submit_secret"; secret: string; mode: GameMode }
+  | { type: "create_room"; name: string; mode: GameMode }
+  | { type: "join_room"; name: string; mode: GameMode; roomId: string }
   | { type: "submit_secret"; secret: string }
   | { type: "make_guess"; guess: string }
   | { type: "leave_matchmaking" }
@@ -10,6 +13,7 @@ export type ClientMessage =
 
 export type ServerMessage =
   | { type: "match_found"; matchId: string; opponentName: string; youAre: PlayerId; gameMode: GameMode }
+  | { type: "room_Created"; roomId: string }
   | { type: "request_secret" }
   | { type: "secret_accepted" }
   | { type: "turn_info"; yourTurn: boolean; turnNumber: number; startingPlayer: PlayerId }

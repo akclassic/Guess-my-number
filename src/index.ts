@@ -41,6 +41,26 @@ const server = Bun.serve({
           matchmaker.addPlayer(ws, name, parsed.mode);
           break;
         }
+        case "create_room": {
+          const name = parsed.name?.trim();
+          if (!name) {
+            ws.send(JSON.stringify({ type: "error", message: "Name is required"}));
+            return;
+          }
+
+          matchmaker.createRoomWithCode(ws, name, parsed.mode);
+          break;
+        }
+        case "join_room": {
+          const name = parsed.name?.trim();
+          if (!name) {
+            ws.send(JSON.stringify({ type: "error", message: "Name is required" }));
+            return;
+          }
+
+          matchmaker.joinRoomWithCode(ws, name, parsed.mode, parsed.roomId.trim().toUpperCase());
+          break;
+        }
         case "submit_secret": {
           const room = matchmaker.getRoom(ws.data.roomId);
           if (!room) {
